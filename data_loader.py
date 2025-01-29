@@ -95,14 +95,14 @@ class PairedImagesDataset(Dataset):
             
             img_hr = (img_hr - img_hr.min()) / (img_hr.max() - img_hr.min()) * 255
             img_hr = img_hr.astype(np.uint8)
+            # img_hr = img_hr.transpose(1, 2, 0)
             img_hr = Image.fromarray(img_hr.transpose(1, 2, 0))
             meta = src.meta
             bands = src.descriptions
         
-        # img_hr = Image.open(self.hr_dir / filename)--
 
-        if img_hr.mode != "RGB":
-            img_hr = img_hr.convert("RGB")
+        # if img_hr.mode != "RGB":
+        #     img_hr = img_hr.convert("RGB")
 
         # Resize the high resolution image
         if self.scale is not None:
@@ -234,13 +234,13 @@ class PairedImagesDataModule(pl.LightningDataModule):
         """
         if stage == "fit" or stage is None:
             self.paired_images_train = PairedImagesDataset(
-                self.hr_dir / "train",
+                Path(Path(str(self.hr_dir)) / 'train'),
                 scale=self.scale,
                 transform_hr=self.transform_hr,
                 transform_lr=self.transform_lr,
             )
             self.paired_images_val = PairedImagesDataset(
-                self.hr_dir / "val",
+                Path(Path(str(self.hr_dir)) / 'val'),
                 scale=self.scale,
                 transform_hr=self.transform_hr,
                 transform_lr=self.transform_lr,
@@ -248,7 +248,7 @@ class PairedImagesDataModule(pl.LightningDataModule):
 
         if stage == "test" or stage is None:
             self.paired_images_test = PairedImagesDataset(
-                self.hr_dir / "test",
+                Path(Path(str(self.hr_dir)) / 'test'),
                 scale=self.scale,
                 transform_hr=self.transform_hr,
                 transform_lr=self.transform_lr,
@@ -256,7 +256,7 @@ class PairedImagesDataModule(pl.LightningDataModule):
 
         elif stage == "train_test":
             self.paired_images_train = PairedImagesDataset(
-                Path(str(self.hr_dir).replace("|train_test|", "train")),
+                Path(Path(str(self.hr_dir)) / 'train'),
                 scale=self.scale,
                 transform_hr=self.transform_hr,
                 transform_lr=self.transform_lr,
@@ -270,7 +270,7 @@ class PairedImagesDataModule(pl.LightningDataModule):
             )
 
             self.paired_images_test = PairedImagesDataset(
-                Path(str(self.hr_dir).replace("|train_test|", "test")),
+                Path(Path(str(self.hr_dir)) / 'test'),
                 scale=self.scale,
                 transform_hr=self.transform_hr,
                 transform_lr=self.transform_lr,
@@ -278,21 +278,21 @@ class PairedImagesDataModule(pl.LightningDataModule):
 
         elif stage == "train_val_test":
             self.paired_images_train = PairedImagesDataset(
-                Path(str(self.hr_dir).replace("|train_val_test|", "train")),
+                Path(Path(str(self.hr_dir)) / "train"),
                 scale=self.scale,
                 transform_hr=self.transform_hr,
                 transform_lr=self.transform_lr,
             )
 
             self.paired_images_val = PairedImagesDataset(
-                Path(str(self.hr_dir).replace("|train_val_test|", "val")),
+                Path(Path(str(self.hr_dir)) / 'val'),
                 scale=self.scale,
                 transform_hr=self.transform_hr,
                 transform_lr=self.transform_lr,
             )
 
             self.paired_images_test = PairedImagesDataset(
-                Path(str(self.hr_dir).replace("|train_val_test|", "test")),
+                Path(Path(str(self.hr_dir)) / 'test'),
                 scale=self.scale,
                 transform_hr=self.transform_hr,
                 transform_lr=self.transform_lr,
@@ -300,11 +300,13 @@ class PairedImagesDataModule(pl.LightningDataModule):
 
         elif stage == "only_test":
             self.paired_images_test = PairedImagesDataset(
-                self.hr_dir,
+                Path(Path(str(self.hr_dir)) / 'test'),
                 scale=self.scale,
                 transform_hr=self.transform_hr,
                 transform_lr=self.transform_lr,
             )
+        else:
+            raise ValueError(f"Invalid stage: {stage}")
 
     def train_dataloader(self):
         """
