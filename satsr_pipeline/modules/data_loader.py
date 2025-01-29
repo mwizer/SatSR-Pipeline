@@ -1,14 +1,16 @@
+import math
 import os
 from pathlib import Path
 
+import numpy as np
 import pytorch_lightning as pl
+import rasterio
 import torch
 from PIL import Image
 from torch.utils.data import DataLoader, Dataset, random_split
 from torchvision import transforms
-import numpy as np
-import math
-import rasterio
+
+# ToDo: Add libraries to requirements.txt
 
 
 class PairedImagesDataset(Dataset):
@@ -57,9 +59,7 @@ class PairedImagesDataset(Dataset):
         self.transform_lr = transform_lr
         self.scale = scale
 
-        self.files = [
-            filename for filename in sorted(os.listdir(os.path.join(hr_dir)))
-        ]
+        self.files = [filename for filename in sorted(os.listdir(os.path.join(hr_dir)))]
 
     def __len__(self) -> int:
         """
@@ -92,17 +92,13 @@ class PairedImagesDataset(Dataset):
         # Load the high resolution images
         with rasterio.open(self.hr_dir / filename) as src:
             img_hr = src.read()
-            
+
             img_hr = (img_hr - img_hr.min()) / (img_hr.max() - img_hr.min()) * 255
             img_hr = img_hr.astype(np.uint8)
             # img_hr = img_hr.transpose(1, 2, 0)
             img_hr = Image.fromarray(img_hr.transpose(1, 2, 0))
             meta = src.meta
-            bands = src.descriptions
-        
-
-        # if img_hr.mode != "RGB":
-        #     img_hr = img_hr.convert("RGB")
+            bands = src.descriptions  # ToDo: Unused variable. Remove if not needed.
 
         # Resize the high resolution image
         if self.scale is not None:
@@ -117,7 +113,6 @@ class PairedImagesDataset(Dataset):
         if self.transform_hr:
             img_hr = self.transform_hr(img_hr)
             img_lr = self.transform_lr(img_lr)
-        
 
         return img_lr, img_hr
 
@@ -176,9 +171,6 @@ class PairedImagesDataModule(pl.LightningDataModule):
         self.hr_dir = hr_dir
         self.batch_size = batch_size
 
-        # if scale is None:
-        #     self.scale = scale
-        # else:
         self.scale = scale
         self.resize = resize
 
@@ -234,13 +226,13 @@ class PairedImagesDataModule(pl.LightningDataModule):
         """
         if stage == "fit" or stage is None:
             self.paired_images_train = PairedImagesDataset(
-                Path(Path(str(self.hr_dir)) / 'train'),
+                Path(Path(str(self.hr_dir)) / "train"),
                 scale=self.scale,
                 transform_hr=self.transform_hr,
                 transform_lr=self.transform_lr,
             )
             self.paired_images_val = PairedImagesDataset(
-                Path(Path(str(self.hr_dir)) / 'val'),
+                Path(Path(str(self.hr_dir)) / "val"),
                 scale=self.scale,
                 transform_hr=self.transform_hr,
                 transform_lr=self.transform_lr,
@@ -248,7 +240,7 @@ class PairedImagesDataModule(pl.LightningDataModule):
 
         if stage == "test" or stage is None:
             self.paired_images_test = PairedImagesDataset(
-                Path(Path(str(self.hr_dir)) / 'test'),
+                Path(Path(str(self.hr_dir)) / "test"),
                 scale=self.scale,
                 transform_hr=self.transform_hr,
                 transform_lr=self.transform_lr,
@@ -256,7 +248,7 @@ class PairedImagesDataModule(pl.LightningDataModule):
 
         elif stage == "train_test":
             self.paired_images_train = PairedImagesDataset(
-                Path(Path(str(self.hr_dir)) / 'train'),
+                Path(Path(str(self.hr_dir)) / "train"),
                 scale=self.scale,
                 transform_hr=self.transform_hr,
                 transform_lr=self.transform_lr,
@@ -270,7 +262,7 @@ class PairedImagesDataModule(pl.LightningDataModule):
             )
 
             self.paired_images_test = PairedImagesDataset(
-                Path(Path(str(self.hr_dir)) / 'test'),
+                Path(Path(str(self.hr_dir)) / "test"),
                 scale=self.scale,
                 transform_hr=self.transform_hr,
                 transform_lr=self.transform_lr,
@@ -285,14 +277,14 @@ class PairedImagesDataModule(pl.LightningDataModule):
             )
 
             self.paired_images_val = PairedImagesDataset(
-                Path(Path(str(self.hr_dir)) / 'val'),
+                Path(Path(str(self.hr_dir)) / "val"),
                 scale=self.scale,
                 transform_hr=self.transform_hr,
                 transform_lr=self.transform_lr,
             )
 
             self.paired_images_test = PairedImagesDataset(
-                Path(Path(str(self.hr_dir)) / 'test'),
+                Path(Path(str(self.hr_dir)) / "test"),
                 scale=self.scale,
                 transform_hr=self.transform_hr,
                 transform_lr=self.transform_lr,
@@ -300,7 +292,7 @@ class PairedImagesDataModule(pl.LightningDataModule):
 
         elif stage == "only_test":
             self.paired_images_test = PairedImagesDataset(
-                Path(Path(str(self.hr_dir)) / 'test'),
+                Path(Path(str(self.hr_dir)) / "test"),
                 scale=self.scale,
                 transform_hr=self.transform_hr,
                 transform_lr=self.transform_lr,
@@ -408,7 +400,6 @@ class PairedImagesDataModule(pl.LightningDataModule):
             cropped_hr = []
             original_size = []
             for img_lr, img_hr in batch:
-
                 cropped_lr.append(img_lr[:, 0:min_height_lr, 0:min_width_lr])
                 cropped_hr.append(img_hr[:, 0:min_height_hr, 0:min_width_hr])
                 original_size.append((img_lr.size(2), img_lr.size(1)))
@@ -460,7 +451,6 @@ class PairedImagesDataModule(pl.LightningDataModule):
         padding_data_hr = []
         padding_data_lr = []
         for img_lr, img_hr in batch:
-
             pad_lr = torch.nn.functional.pad(
                 img_lr,
                 (0, max_width_lr - img_lr.size(2), 0, max_height_lr - img_lr.size(1)),
@@ -483,7 +473,7 @@ class PairedImagesDataModule(pl.LightningDataModule):
         return res
 
 
-def train_val_test_loader(data_folder, scale, batch_size, mode:str, resize=True):
+def train_val_test_loader(data_folder, scale, batch_size, mode: str, resize=True):
     """
     Create and return DataLoaders for training, validation, and testing datasets.
 
@@ -502,10 +492,8 @@ def train_val_test_loader(data_folder, scale, batch_size, mode:str, resize=True)
     ValueError
         If the specified dataset is not found in the configuration.
     """
-    
-    hr_dir = Path(
-        data_folder
-    )
+
+    hr_dir = Path(data_folder)
 
     data_module = PairedImagesDataModule(
         hr_dir=hr_dir,
@@ -515,18 +503,17 @@ def train_val_test_loader(data_folder, scale, batch_size, mode:str, resize=True)
     )
     data_module.setup(mode)
 
-    if 'train' in mode:
+    if "train" in mode:
         train_loader = data_module.train_dataloader()
     else:
         train_loader = None
-    if 'val' in mode:
+    if "val" in mode:
         val_loader = data_module.val_dataloader()
     else:
-        val_loader = None    
-    if 'test' in mode:
+        val_loader = None
+    if "test" in mode:
         test_loader = data_module.test_dataloader()
     else:
         test_loader = None
-      
 
     return train_loader, val_loader, test_loader
