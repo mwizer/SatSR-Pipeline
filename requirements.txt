@@ -1,0 +1,7 @@
+jupyter
+earthengine-api
+# FireHR 
+pyhdf
+geopy
+geemap # interactive mapping
+pytorch-lightning
