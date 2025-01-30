@@ -14,17 +14,19 @@ import rasterio
 import rasterio.transform
 from geopy.distance import distance
 from geopy.geocoders import Nominatim
-from modules.divide_data import divide_images
-from modules.PictureInfo import PictureInfo
+from satsr_pipeline.modules.divide_data import divide_images
+from satsr_pipeline.modules.data_loader import train_val_test_loader
+from satsr_pipeline.modules.RegionInfo import RegionInfo
 from tqdm import tqdm
 
 logging.basicConfig(level=logging.INFO, format="SatSR %(levelname)s: %(message)s")
 
 # ToDo: Add metadata for every image. Locations, date, clouds etc.
 # ToDo: Can we consider multithreading or multiprocessing for downloading images? Or some other parts of the code, for optimization.
+# ToDo: Ad2: I think we can multithread downloading of tiles, but not with whole images bcs of the way we save them... but we can check it later
 #       What are most time-consuming parts of the code? Maybe we can optimize them.
 
-__version__ = "1.0.1"
+__version__ = "1.1.0"
 
 
 class SatSRError(Exception):
@@ -56,8 +58,10 @@ class Pipeline:
         """
         self.geolocator = Nominatim(
             user_agent="sr_pipeline"
-        )  # ToDo: Is this user_agent personal info?
+        )  # ToDo: We need to check license
 
+        self
+        
         self.title = "image_title"
         self._point = None
         self._distance_x = None
@@ -65,14 +69,13 @@ class Pipeline:
         self._full_box = None
         self._time_start = None
         self._time_end = None
-        self._picture_info = None
+        self._region_info = None
         self._img_idx = None
 
         self.data_path = data_path
         self.bands = bands
         self.product = product
 
-    def __enter__(self):
         ee.Authenticate()
         ee.Initialize()
 
@@ -159,12 +162,7 @@ class Pipeline:
         if not self._is_number(value):
             raise SatSRError("meter_per_pixel must be a number")
         self._meter_per_pixel = value
-        self.picture_info = PictureInfo(
-            box=self.full_box,
-            meter_per_pixel=value,
-            bands=self.bands,
-        )
-
+        
     @property
     def time_start(self):
         return self._time_start
@@ -190,6 +188,17 @@ class Pipeline:
             self._time_end = value
         else:
             raise SatSRError("time_end must be a string or datetime object")
+
+    @property
+    def img_idx(self):
+        return self._img_idx
+    
+    @img_idx.setter
+    def img_idx(self, value: int):
+        if isinstance(value, int):
+            self._img_idx = value
+        else:
+            raise SatSRError("img_idx must be a int")
 
     def setup_point(
         self,
@@ -226,6 +235,9 @@ class Pipeline:
         self.distance_y = distance_y
         self.meter_per_pixel = meter_per_pixel
         self.full_box = self._create_box()
+        self.region_info = RegionInfo(
+            box=self.full_box
+        )
         self.time_start = time_start
         self.time_end = time_end
 
@@ -275,7 +287,7 @@ class Pipeline:
         Print information about the current state of the object.
         """
         logging.info(f"Point: {self.point.longitude, self.point.latitude}")
-        logging.info(f"Meter per pixel: {self.picture_info.meter_per_pixel}")
+        logging.info(f"Meter per pixel: {self.meter_per_pixel}")
         logging.info(f"Distance x: {self.distance_x}")
         logging.info(f"Distance y: {self.distance_y}")
         logging.info(f"Box: {self.full_box}")
@@ -340,10 +352,10 @@ class Pipeline:
         latitude_points = []
         current_longitude = min_longitude
         current_latitude = min_latitude
-        # ToDo: Shouldn't those loops be parallelized? Both are using current_latitude and current_longitude.
+        
         while (
             current_longitude < max_longitude
-        ):  # round(current_lon, 5) < round(max_lon, 5):
+        ):
             next_longitude = _distance_longitude.destination(
                 geopy.point.Point([current_latitude, current_longitude]), 90
             ).longitude
@@ -352,7 +364,7 @@ class Pipeline:
 
         while (
             current_latitude < max_latitude
-        ):  # round(current_lat, 5) < round(max_lat, 5):
+        ):
             next_latitude = _distance_latitude.destination(
                 geopy.point.Point([current_latitude, current_longitude]), 0
             ).latitude
@@ -382,10 +394,8 @@ class Pipeline:
 
         return tiles
 
-    # ToDo: Product is given in __init__ method, so it is not necessary to pass it as an argument here or in the info method.
     def download_image(
         self,
-        product: str = "COPERNICUS/S2_SR_HARMONIZED",
         file_name_base: str = "image",
         tile_size: int = 1000,
         max_cloud: float = 0.3,
@@ -411,21 +421,21 @@ class Pipeline:
         #       Additionally, consider to split this method, as it is used in the download_images_list method and not whole operations are needed to be repeated.
         self.data_path.mkdir(parents=True, exist_ok=True)
         aoi = ee.Geometry.Polygon(
-            self.picture_info.bounding_box_coordinates
+            self.region_info.bounding_box_coordinates
         )  # area of interest
 
-        # .filterBounds(aoi) \
         collection = (
-            ee.ImageCollection(product)
+            ee.ImageCollection(self.product)
             .filterDate(self.time_start, self.time_end)
             .filterMetadata("CLOUDY_PIXEL_PERCENTAGE", "not_greater_than", max_cloud)
         )
-        image = collection.select(self.picture_info.bands).median().unmask()
+        image = collection.select(self.bands).median().unmask()
 
         tiles_list = self._split_region(aoi.getInfo(), tile_size)
 
         # check if there are any images in the folder
         # ToDo: It should check maybe caught idex with regex, this is a bit naive.
+        # ToDo: I would change way we name images, so we wont override them. Maybe something with date, location and tiles?
         if self.img_idx is None:
             number_of_images = [
                 f for f in os.listdir(self.data_path) if f.startswith(file_name_base)
@@ -441,8 +451,7 @@ class Pipeline:
         for tile_idx, tile in enumerate(
             tqdm(
                 tiles_list,
-                desc=f"Downloading tiles for {self.img_idx} image",  # ToDo: I would give here the whole name
-                leave=True,
+                desc=f"Downloading tiles for {self.img_idx} image",  # ToDo: I would give here the whole name of file
             )
         ):
             output_file = self.data_path / Path(
@@ -452,33 +461,34 @@ class Pipeline:
                 geemap.ee_export_image(
                     image,
                     filename=output_file,
-                    scale=self.picture_info.meter_per_pixel,
+                    scale=self.meter_per_pixel,
                     region=tile,
                     file_per_band=False,
                 )
             else:
-                with self._suppress_stdout():  # ToDo: I would consider a flag for some debug mode with log file, and collect this output there then.
+                with self._suppress_stdout():  # ToDo: I would consider a flag for some debug mode with log file, and collect this output there then. Maybe global flag log_on for class.
                     geemap.ee_export_image(
                         image,
                         filename=output_file,
-                        scale=self.picture_info.meter_per_pixel,
+                        scale=self.meter_per_pixel,
                         region=tile,
                         file_per_band=False,
                     )
 
-    def download_images_list(  # ToDo: Order of parameters is not consistent with other methods, order matters, not give every parameter default.
+    def download_images_list(
         self,
         points_list: list,
+        filename: str = "image_title",
         tile_size: int = 1000,
         max_cloud: float = 0.3,
-        title: str = "image_title",
+        time_start: str = "2020-01-01",  # ToDo: What does exactly this dates do?
+        time_end: str = "2024-12-31",  # ToDo: I think those are not the dates we wanted to have. We want to take images with timestamps between those dates. So multiple images from different dates can be downloaded.
+        # I would rename variables, and add this functionality to other method, that would collect images from different dates as different files.
         meter_per_pixel: float = 5.0,
         distance_x: Union[
             int, float, list
         ] = 1000,  # ToDo: For sure in readme must be explained what the main parameters are doing.
         distance_y: Union[int, float, list] = 1000,
-        time_start: str = "2020-01-01",  # ToDo: What does exactly this dates do?
-        time_end: str = "2024-12-31",  # ToDo: I think those are not the dates we wanted to have. We want to take images with timestamps between those dates. So multiple images from different dates can be downloaded.
         divide_mode: str = None,
         verbose: bool = False,
     ):
@@ -533,7 +543,7 @@ class Pipeline:
 
         for idx, point in enumerate(
             tqdm(
-                points_list, desc="Downloading images for points", leave=False
+                points_list, desc="Downloading images for points"
             )  # ToDo: Flag for tqdm. Potential log file for this.
         ):
             if isinstance(distance_x, (list, tuple)):
@@ -547,21 +557,20 @@ class Pipeline:
                 point,
                 time_start=time_start,
                 time_end=time_end,
-                title=title,
+                title=filename,
                 meter_per_pixel=meter_per_pixel,
                 distance_x=dist_x,
                 distance_y=dist_y,
             )
             self.download_image(
-                product=self.product,
-                file_name_base=title,
+                file_name_base=filename,
                 tile_size=tile_size,
                 max_cloud=max_cloud,
                 verbose=verbose,
             )
         if divide_mode is not None:
             divide_images(
-                divide_mode=divide_mode, download_path=self.data_path, title=title
+                divide_mode=divide_mode, download_path=self.data_path, title=filename
             )
 
     @staticmethod
@@ -577,3 +586,8 @@ class Pipeline:
                 yield
             finally:
                 sys.stdout = old_stdout
+                
+    def create_data_loaders(self, scale, batch_size, mode, resize, path = None):
+        if path is None:
+            path = self.data_path
+        return train_val_test_loader(path, scale, batch_size, mode, resize)

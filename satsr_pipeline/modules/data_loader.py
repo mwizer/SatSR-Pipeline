@@ -10,8 +10,6 @@ from PIL import Image
 from torch.utils.data import DataLoader, Dataset, random_split
 from torchvision import transforms
 
-# ToDo: Add libraries to requirements.txt
-
 
 class PairedImagesDataset(Dataset):
     """
@@ -98,7 +96,6 @@ class PairedImagesDataset(Dataset):
             # img_hr = img_hr.transpose(1, 2, 0)
             img_hr = Image.fromarray(img_hr.transpose(1, 2, 0))
             meta = src.meta
-            bands = src.descriptions  # ToDo: Unused variable. Remove if not needed.
 
         # Resize the high resolution image
         if self.scale is not None:

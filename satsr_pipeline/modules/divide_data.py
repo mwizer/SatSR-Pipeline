@@ -41,8 +41,8 @@ def divide_images(
         train_files, val_files = train_test_split(
             img_list, test_size=(1 - train_ratio), random_state=42
         )
-        os.mkdir(os.path.join(download_path, "train"))
-        os.mkdir(os.path.join(download_path, "val"))
+        os.makedirs(os.path.join(download_path, "train"), exist_ok=True)
+        os.makedirs(os.path.join(download_path, "val"), exist_ok=True)
         move_files(
             train_files, download_path, os.path.join(download_path, "train"), workers
         )
@@ -57,9 +57,10 @@ def divide_images(
         val_files, test_files = train_test_split(
             temp_files, test_size=test_ratio / (val_ratio + test_ratio), random_state=42
         )
-        os.mkdir(os.path.join(download_path, "train"))
-        os.mkdir(os.path.join(download_path, "val"))
-        os.mkdir(os.path.join(download_path, "test"))
+        
+        os.makedirs(os.path.join(download_path, "train"), exist_ok=True)
+        os.makedirs(os.path.join(download_path, "val"), exist_ok=True)
+        os.makedirs(os.path.join(download_path, "test"), exist_ok=True)
         move_files(
             train_files, download_path, os.path.join(download_path, "train"), workers
         )

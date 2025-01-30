@@ -7,3 +7,8 @@ matplotlib==3.10.0
 matplotlib-inline==0.1.7
 earthengine-api==1.4.4
 tqdm==4.67.1
+pytorch-lightning==2.5.0.post0
+numpy==2.2.1
+torch==2.5.1
+torchmetrics==1.6.1
+torchvision==0.20.1
