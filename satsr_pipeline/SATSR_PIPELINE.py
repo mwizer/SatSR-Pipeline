@@ -1,4 +1,5 @@
 import datetime as dt
+import json
 import logging
 import os
 import sys
@@ -14,10 +15,11 @@ import rasterio
 import rasterio.transform
 from geopy.distance import distance
 from geopy.geocoders import Nominatim
-from satsr_pipeline.modules.divide_data import divide_images
-from satsr_pipeline.modules.data_loader import train_val_test_loader
-from satsr_pipeline.modules.RegionInfo import RegionInfo
 from tqdm import tqdm
+
+from satsr_pipeline.modules.data_loader import train_val_test_loader
+from satsr_pipeline.modules.divide_data import divide_images
+from satsr_pipeline.modules.RegionInfo import RegionInfo
 
 logging.basicConfig(level=logging.INFO, format="SatSR %(levelname)s: %(message)s")
 
@@ -430,6 +432,7 @@ class Pipeline:
             .filterMetadata("CLOUDY_PIXEL_PERCENTAGE", "not_greater_than", max_cloud)
         )
         image = collection.select(self.bands).median().unmask()
+        timestamp = collection.first().get('system:time_start').getInfo()
 
         tiles_list = self._split_region(aoi.getInfo(), tile_size)
 
@@ -457,6 +460,9 @@ class Pipeline:
             output_file = self.data_path / Path(
                 f"{file_name_base}_{self.img_idx}_{tile_idx}.tif"
             )
+            metadata_file = self.data_path / Path(
+                f"{file_name_base}_{self.img_idx}_{tile_idx}_metadata.json"
+            )
             if verbose:
                 geemap.ee_export_image(
                     image,
@@ -474,6 +480,16 @@ class Pipeline:
                         region=tile,
                         file_per_band=False,
                     )
+
+            cloud_coverage = collection.filterBounds(tile).first().get('CLOUDY_PIXEL_PERCENTAGE').getInfo()
+
+            metadata = {
+                "coordinates": tile['coordinates'],
+                "cloud_coverage": cloud_coverage,
+                "timestamp": timestamp
+            }
+            with open(metadata_file, 'w') as f:
+                json.dump(metadata, f)
 
     def download_images_list(
         self,
