@@ -433,6 +433,7 @@ class Pipeline:
         )
         image = collection.select(self.bands).median().unmask()
         timestamp = collection.first().get('system:time_start').getInfo()
+        timestamp = dt.datetime.fromtimestamp(timestamp / 1000)
 
         tiles_list = self._split_region(aoi.getInfo(), tile_size)
 
@@ -461,7 +462,7 @@ class Pipeline:
                 f"{file_name_base}_{self.img_idx}_{tile_idx}.tif"
             )
             metadata_file = self.data_path / Path(
-                f"{file_name_base}_{self.img_idx}_{tile_idx}_metadata.json"
+                f"metadata_{file_name_base}_{self.img_idx}_{tile_idx}.json"
             )
             if verbose:
                 geemap.ee_export_image(
@@ -486,7 +487,7 @@ class Pipeline:
             metadata = {
                 "coordinates": tile['coordinates'],
                 "cloud_coverage": cloud_coverage,
-                "timestamp": timestamp
+                "timestamp": timestamp.strftime("%Y-%m-%d %H:%M:%S")
             }
             with open(metadata_file, 'w') as f:
                 json.dump(metadata, f)
