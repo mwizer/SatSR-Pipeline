@@ -2,7 +2,6 @@ import numpy as np
 import rasterio
 import rasterio.transform
 
-
 class RegionInfo:
     def __init__(
         self,
@@ -69,4 +68,3 @@ class RegionInfo:
             (self.box["left"], self.box["top"]),
         ]
         return corners
-
