@@ -65,9 +65,11 @@ class Pipeline:
         self
         
         self.title = "image_title"
+        self._nomim_loc_name = None
         self._point = None
         self._distance_x = None
         self._distance_y = None
+        self._geolocator_bbox = False
         self._full_box = None
         self._time_start = None
         self._time_end = None
@@ -118,8 +120,10 @@ class Pipeline:
     @point.setter
     def point(self, value: Union[tuple, str]):
         if isinstance(value, str):
+            self._nomim_loc_name = value
             self._point = self._text2cord(value)
         elif isinstance(value, (tuple, list)) and len(value) == 2:
+            self._nomim_loc_name = None
             self._point = geopy.point.Point(value)
         else:
             raise SatSRError("Point must be a string or tuple with two values")
@@ -154,6 +158,18 @@ class Pipeline:
         if not self._is_number(value):
             raise SatSRError("distance_y must be a number")
         self._distance_y = value
+        
+    @property
+    def geolocator_bbox(self):
+        return self._geolocator_bbox
+
+    @geolocator_bbox.setter
+    def geolocator_bbox(self, value: bool):
+        if not isinstance(value, bool):
+            raise SatSRError("geolocator_bbox must be a boolean")
+        if self._nomim_loc_name is None:
+            raise SatSRError("geolocator_bbox cannot be used without a location name")
+        self._geolocator_bbox = value
 
     @property
     def meter_per_pixel(self):
@@ -211,6 +227,7 @@ class Pipeline:
         meter_per_pixel: float = 5.0,
         distance_x: float = 1000,  # in meters
         distance_y: float = 1000,
+        use_geolocator_bbox: bool = False,
     ):
         """Set up the point of interest and related parameters.
 
@@ -230,6 +247,8 @@ class Pipeline:
             The distance in the x-direction in meters. Default is 1000.
         distance_y : float, optional
             The distance in the y-direction in meters. Default is 1000.
+        use_geolocator_bbox : bool, optional
+            If True, use the geolocator to get the bounding box. Default is False.
         """
         self.point = point
         self.title = title
@@ -242,6 +261,7 @@ class Pipeline:
         )
         self.time_start = time_start
         self.time_end = time_end
+        self._geolocator_bbox = use_geolocator_bbox
 
     def _text2cord(self, text: str):
         """
@@ -269,14 +289,31 @@ class Pipeline:
         dict
             A dictionary representing the bounding box with keys 'left', 'right', 'top', and 'bottom'.
         """
-        _distance_x = distance(meters=self.distance_x / 2)
-        _distance_y = distance(meters=self.distance_y / 2)
-        box = {
-            "left": _distance_x.destination(self.point, 270).longitude,
-            "right": _distance_x.destination(self.point, 90).longitude,
-            "top": _distance_y.destination(self.point, 0).latitude,
-            "bottom": _distance_y.destination(self.point, 180).latitude,
-        }
+        
+        if self._geolocator_bbox and self._nomim_loc_name is not None:
+            polygon = self.geolocator.geocode(self._nomim_loc_name, exactly_one=True, geometry='geojson').raw['geojson']['coordinates'][0]
+            min_lon = min(coord[0] for coord in polygon)
+            max_lon = max(coord[0] for coord in polygon)
+            min_lat = min(coord[1] for coord in polygon)
+            max_lat = max(coord[1] for coord in polygon)
+            box = {
+                "left": min_lon,
+                "right": max_lon,
+                "top": max_lat,
+                "bottom": min_lat,
+            }
+        
+        else:
+            _distance_x = distance(meters=self.distance_x / 2)
+            _distance_y = distance(meters=self.distance_y / 2)
+            box = {
+                "left": _distance_x.destination(self.point, 270).longitude,
+                "right": _distance_x.destination(self.point, 90).longitude,
+                "top": _distance_y.destination(self.point, 0).latitude,
+                "bottom": _distance_y.destination(self.point, 180).latitude,
+            }
+            
+            
         return box
 
     @staticmethod
