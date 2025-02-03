@@ -28,7 +28,7 @@ logging.basicConfig(level=logging.INFO, format="SatSR %(levelname)s: %(message)s
 # ToDo: Ad2: I think we can multithread downloading of tiles, but not with whole images bcs of the way we save them... but we can check it later
 #       What are most time-consuming parts of the code? Maybe we can optimize them.
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 
 
 class SatSRError(Exception):
@@ -338,12 +338,13 @@ class Pipeline:
     ):
         """
         Plot the satellite image with optional brightness adjustment.
+
         Parameters
         ----------
         file_name : str
             The name of the image file.
         path_folder : str, optional
-            The folder path where the image file is located. Default is 'data/satsr'.
+            The folder path where the image file is located. Default is 'data/'.
         brightness : float, optional
             The brightness adjustment factor. Default is 1.
         """
@@ -445,8 +446,6 @@ class Pipeline:
 
         Parameters
         ----------
-        product : str, optional
-            The satellite image product to download. Default is "COPERNICUS/S2_SR_HARMONIZED".
         file_name_base : str, optional
             The base name for the downloaded image files. Default is 'image'.
         tile_size : int, optional
@@ -535,13 +534,10 @@ class Pipeline:
         filename: str = "image_title",
         tile_size: int = 1000,
         max_cloud: float = 0.3,
-        time_start: str = "2020-01-01",  # ToDo: What does exactly this dates do?
-        time_end: str = "2024-12-31",  # ToDo: I think those are not the dates we wanted to have. We want to take images with timestamps between those dates. So multiple images from different dates can be downloaded.
-        # I would rename variables, and add this functionality to other method, that would collect images from different dates as different files.
+        time_start: str = "2020-01-01",
+        time_end: str = "2024-12-31",
         meter_per_pixel: float = 5.0,
-        distance_x: Union[
-            int, float, list
-        ] = 1000,  # ToDo: For sure in readme must be explained what the main parameters are doing.
+        distance_x: Union[int, float, list] = 1000,
         distance_y: Union[int, float, list] = 1000,
         use_geolocator_bbox: bool = False,
         divide_mode: str = None,
@@ -554,12 +550,16 @@ class Pipeline:
         ----------
         points_list : list
             A list of geographical points. Each point can be a tuple (latitude, longitude) or a string address.
+        filename : str, optional
+            The base name for the downloaded image files. Default is 'image_title'.
         tile_size : int, optional
             The size of each tile in meters. Default is 1000.
         max_cloud : float, optional
             The maximum cloud coverage percentage allowed. Default is 0.3.
-        title : str, optional
-            The title of the image. Default is 'image_title'.
+        time_start : str, optional
+            The start time for the data in 'YYYY-MM-DD' format. Default is '2020-01-01'.
+        time_end : str, optional
+            The end time for the data in 'YYYY-MM-DD' format. Default is '2024-12-31'.
         meter_per_pixel : float, optional
             The resolution in meters per pixel. Default is 5.0.
         distance_x : Union[int, float, list], optional
@@ -568,10 +568,6 @@ class Pipeline:
             The distance in the y-direction in meters. Can be a single value or a list of values. Default is 1000.
         use_geolocator_bbox : bool, optional
             If True, use the geolocator to get the bounding box. Default is False.
-        time_start : str, optional
-            The start time for the data in 'YYYY-MM-DD' format. Default is '2020-01-01'.
-        time_end : str, optional
-            The end time for the data in 'YYYY-MM-DD' format. Default is '2024-12-31'.
         divide_mode : str, optional
             Divide images into train, validation and test sets. "train-val-test" or "train-val". Default is None.
         verbose : bool, optional
@@ -650,7 +646,28 @@ class Pipeline:
             finally:
                 sys.stdout = old_stdout
                 
-    def create_data_loaders(self, scale, batch_size, mode, resize, path = None):
+    def create_data_loaders(self, scale, batch_size, mode, resize, path=None):
+        """
+        Create data loaders for training, validation, and testing.
+
+        Parameters
+        ----------
+        scale : float
+            The scale factor for the data.
+        batch_size : int
+            The batch size for the data loaders.
+        mode : str
+            The mode for the data loaders (e.g., 'train', 'val', 'test').
+        resize : tuple
+            The resize dimensions for the data.
+        path : str, optional
+            The path to the data directory. Default is None, which uses self.data_path.
+
+        Returns
+        -------
+        tuple
+            A tuple containing the train, validation, and test data loaders.
+        """
         if path is None:
             path = self.data_path
         return train_val_test_loader(path, scale, batch_size, mode, resize)

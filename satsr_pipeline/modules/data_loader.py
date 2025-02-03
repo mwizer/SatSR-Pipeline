@@ -476,8 +476,16 @@ def train_val_test_loader(data_folder, scale, batch_size, mode: str, resize=True
 
     Parameters
     ----------
-    cfg : DictConfig
-        The configuration object containing model parameters and settings.
+    data_folder : str
+        The path to the data directory.
+    scale : int
+        The scaling factor for resizing images.
+    batch_size : int
+        The batch size for the DataLoaders.
+    mode : str
+        The mode for the DataLoaders (e.g., 'train', 'val', 'test').
+    resize : bool, optional
+        Whether to resize the images. Default is True.
 
     Returns
     -------
