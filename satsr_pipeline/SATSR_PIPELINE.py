@@ -28,7 +28,7 @@ logging.basicConfig(level=logging.INFO, format="SatSR %(levelname)s: %(message)s
 # ToDo: Ad2: I think we can multithread downloading of tiles, but not with whole images bcs of the way we save them... but we can check it later
 #       What are most time-consuming parts of the code? Maybe we can optimize them.
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 
 
 class SatSRError(Exception):

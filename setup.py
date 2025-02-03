@@ -5,9 +5,9 @@ with open('requirements.txt') as f:
 
 setup(
     name='SATSR-PIPELINE',
-    version='1.1.0',
+    version='1.2.0',
     description='A pipeline for processing satellite images',
-    author='Maciej Wizerkaniuk',
+    author='Dawid Kopeć, Dawid Krutul, Maciej Wizerkaniuk',
     packages=find_packages(),
     install_requires=requirements,
     python_requires='>=3.10',
