@@ -69,7 +69,7 @@ class Pipeline:
         self._point = None
         self._distance_x = None
         self._distance_y = None
-        self._geolocator_bbox = False
+        self._use_geolocator_bbox = False
         self._full_box = None
         self._time_start = None
         self._time_end = None
@@ -160,16 +160,16 @@ class Pipeline:
         self._distance_y = value
         
     @property
-    def geolocator_bbox(self):
-        return self._geolocator_bbox
+    def use_geolocator_bbox(self):
+        return self._use_geolocator_bbox
 
-    @geolocator_bbox.setter
-    def geolocator_bbox(self, value: bool):
+    @use_geolocator_bbox.setter
+    def use_geolocator_bbox(self, value: bool):
         if not isinstance(value, bool):
-            raise SatSRError("geolocator_bbox must be a boolean")
+            raise SatSRError("use_geolocator_bbox must be a boolean")
         if self._nomim_loc_name is None:
-            raise SatSRError("geolocator_bbox cannot be used without a location name")
-        self._geolocator_bbox = value
+            raise SatSRError("use_geolocator_bbox cannot be used without a location name")
+        self._use_geolocator_bbox = value
 
     @property
     def meter_per_pixel(self):
@@ -255,13 +255,13 @@ class Pipeline:
         self.distance_x = distance_x
         self.distance_y = distance_y
         self.meter_per_pixel = meter_per_pixel
+        self._use_geolocator_bbox = use_geolocator_bbox
         self.full_box = self._create_box()
         self.region_info = RegionInfo(
             box=self.full_box
         )
         self.time_start = time_start
         self.time_end = time_end
-        self._geolocator_bbox = use_geolocator_bbox
 
     def _text2cord(self, text: str):
         """
@@ -289,8 +289,8 @@ class Pipeline:
         dict
             A dictionary representing the bounding box with keys 'left', 'right', 'top', and 'bottom'.
         """
-        
-        if self._geolocator_bbox and self._nomim_loc_name is not None:
+        if self._use_geolocator_bbox and self._nomim_loc_name is not None:
+            
             polygon = self.geolocator.geocode(self._nomim_loc_name, exactly_one=True, geometry='geojson').raw['geojson']['coordinates'][0]
             min_lon = min(coord[0] for coord in polygon)
             max_lon = max(coord[0] for coord in polygon)
@@ -543,6 +543,7 @@ class Pipeline:
             int, float, list
         ] = 1000,  # ToDo: For sure in readme must be explained what the main parameters are doing.
         distance_y: Union[int, float, list] = 1000,
+        use_geolocator_bbox: bool = False,
         divide_mode: str = None,
         verbose: bool = False,
     ):
@@ -565,6 +566,8 @@ class Pipeline:
             The distance in the x-direction in meters. Can be a single value or a list of values. Default is 1000.
         distance_y : Union[int, float, list], optional
             The distance in the y-direction in meters. Can be a single value or a list of values. Default is 1000.
+        use_geolocator_bbox : bool, optional
+            If True, use the geolocator to get the bounding box. Default is False.
         time_start : str, optional
             The start time for the data in 'YYYY-MM-DD' format. Default is '2020-01-01'.
         time_end : str, optional
@@ -594,6 +597,11 @@ class Pipeline:
             raise SatSRError(
                 "Distance x and y must have the same length as points list, have the same length or be a single number"
             )
+            
+        if use_geolocator_bbox:
+            for point in points_list:
+                if not isinstance(point, str):
+                    raise SatSRError("All points must be a string when using geolocator for bounding box")
 
         for idx, point in enumerate(
             tqdm(
@@ -615,6 +623,7 @@ class Pipeline:
                 meter_per_pixel=meter_per_pixel,
                 distance_x=dist_x,
                 distance_y=dist_y,
+                use_geolocator_bbox=use_geolocator_bbox
             )
             self.download_image(
                 file_name_base=filename,
